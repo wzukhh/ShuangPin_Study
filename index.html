@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>双拼打字练习</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部工具栏 -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <button class="btn" id="startBtn">开始</button>
+                <button class="btn" id="pauseBtn" disabled>暂停</button>
+                <button class="btn" id="resetBtn">重置</button>
+                <div class="divider"></div>
+                <label>
+                    <span class="label-text">速度</span>
+                    <select id="speedSelect">
+                        <option value="slow">慢速</option>
+                        <option value="normal" selected>正常</option>
+                        <option value="fast">快速</option>
+                    </select>
+                </label>
+                <div class="divider"></div>
+                <label>
+                    <span class="label-text">练习类型</span>
+                    <select id="difficultySelect">
+                        <option value="word">单字</option>
+                        <option value="sentence" selected>句子</option>
+                    </select>
+                </label>
+                <div class="divider"></div>
+                <label>
+                    <span class="label-text">双拼方案</span>
+                    <select id="configSelect">
+                        <!-- 配置选项会动态生成 -->
+                    </select>
+                </label>
+                <div class="divider"></div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="showKeyExtra" checked>
+                    <span>双拼码</span>
+                </label>
+            </div>
+            <div class="toolbar-right">
+                <button class="btn theme-toggle" id="themeToggle" title="切换主题">
+                    <span id="themeIcon">🌙</span>
+                </button>
+                <button class="btn help-toggle" id="helpToggle" title="使用说明">ℹ️</button>
+            </div>
+        </div>
+
+        <!-- 中间打字区域 -->
+        <div class="typing-area">
+            <div class="text-container" id="textContainer">
+                <!-- 文本和拼音会动态生成 -->
+            </div>
+            <div class="input-wrapper">
+                <input type="text" id="typingInput" class="typing-input" autocomplete="off" spellcheck="false">
+            </div>
+        </div>
+
+        <!-- 底部虚拟键盘 -->
+        <div class="virtual-keyboard" id="virtualKeyboard">
+            <!-- 键盘按键会动态生成 -->
+        </div>
+
+        <!-- 统计面板 -->
+        <div class="stats-panel">
+            <div class="stats-item">
+                <span class="stats-label">总字数:</span>
+                <span class="stats-value" id="totalChars">0</span>
+            </div>
+            <div class="stats-item">
+                <span class="stats-label">已完成:</span>
+                <span class="stats-value" id="completedChars">0</span>
+            </div>
+            <div class="stats-item">
+                <span class="stats-label">错误数:</span>
+                <span class="stats-value" id="errorCount">0</span>
+            </div>
+            <div class="stats-item">
+                <span class="stats-label">用时:</span>
+                <span class="stats-value" id="timeElapsed">0秒</span>
+            </div>
+            <button class="btn stats-btn" id="viewErrorsBtn">查看错误记录</button>
+        </div>
+
+        <!-- 使用说明 -->
+        <div class="help-panel" id="helpPanel">
+            <div class="help-content" id="helpContent">
+                <h4>使用说明</h4>
+                <ul>
+                    <li><strong>开始练习：</strong>点击"开始"按钮，在输入框中输入当前高亮汉字对应的双拼按键（2个字母）</li>
+                    <li><strong>输入方式：</strong>可以使用虚拟键盘点击输入，或使用物理键盘直接输入，需要切换为英文输入模式</li>
+                    <li><strong>输入反馈：</strong>输入正确后文本自动左移，错误时字符显示红色，正确后显示绿色</li>
+                    <li><strong>控制按钮：</strong>"开始"开始练习，"暂停/继续"暂停或继续，"重置"重新开始</li>
+                    <li><strong>练习设置：</strong>可调整练习类型（单字/句子）、双拼方案</li>
+                    <li><strong>双拼码提示：</strong>勾选"双拼码"可在虚拟键盘上显示声母和韵母提示</li>
+                    <li><strong>统计信息：</strong>实时显示总字数、已完成、错误数和用时，可查看详细错误记录</li>
+                    <li><strong>完成练习：</strong>完成后会显示统计弹窗，包括用时最长的字和总用时</li>
+                    <li><strong>主题切换：</strong>点击右上角主题按钮可切换明亮/黑暗主题</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- 完成弹窗 -->
+    <div class="completion-modal" id="completionModal">
+        <div class="completion-content">
+            <div class="completion-icon">🎉</div>
+            <h2>🏆恭喜完成✨</h2>
+            <p id="completionMessage"></p>
+            
+            <!-- 统计信息 -->
+            <div class="completion-stats" id="completionStats">
+                <!-- 动态生成内容 -->
+            </div>
+            
+            <div class="completion-buttons">
+                <button class="btn completion-btn" id="completionViewErrorsBtn" style="display: none;">查看错误记录</button>
+                <button class="btn completion-btn" id="completionCloseBtn">确定</button>
+            </div>
+        </div>
+        <canvas id="fireworksCanvas"></canvas>
+    </div>
+
+    <!-- 错误记录弹窗 -->
+    <div class="error-modal" id="errorModal">
+        <div class="error-modal-content">
+            <div class="error-modal-header">
+                <h3>错误记录</h3>
+                <button class="error-modal-close" id="errorModalCloseBtn">×</button>
+            </div>
+            <div class="error-modal-body" id="errorModalBody">
+                <!-- 错误记录内容会动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="static/keyboard-config.js"></script>
+    <script src="static/practice.js"></script>
+    <script src="static/script.js"></script>
+    <script src="static/pinyinPro.js"></script>
+</body>
+</html>
+
