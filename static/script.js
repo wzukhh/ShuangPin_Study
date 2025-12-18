@@ -4,7 +4,7 @@ let practiceData = [];
 // 虚拟键盘布局（字母按键）
 const keyboardLayout = [
     ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';'],
     ['z', 'x', 'c', 'v', 'b', 'n', 'm']
 ];
 
@@ -12,7 +12,6 @@ const keyboardLayout = [
 let currentIndex = 0;
 let isPlaying = false;
 let currentText = [];
-let speed = 'normal';
 let difficulty = 'sentence';
 let scrollPosition = -14; // 初始向左偏移半个字符位置
 let hasStarted = false; // 是否已经点击过开始按钮
@@ -37,7 +36,6 @@ const virtualKeyboard = document.getElementById('virtualKeyboard');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resetBtn = document.getElementById('resetBtn');
-const speedSelect = document.getElementById('speedSelect');
 const difficultySelect = document.getElementById('difficultySelect');
 const helpToggle = document.getElementById('helpToggle');
 const helpContent = document.getElementById('helpContent');
@@ -56,6 +54,7 @@ const viewErrorsBtn = document.getElementById('viewErrorsBtn');
 const errorModal = document.getElementById('errorModal');
 const errorModalCloseBtn = document.getElementById('errorModalCloseBtn');
 const errorModalBody = document.getElementById('errorModalBody');
+const progressBar = document.getElementById('progressBar');
 
 // 当前键盘配置
 let currentKeyboardConfig = null;
@@ -71,25 +70,39 @@ let cachedConfigCode = null;
 // 预处理配置，生成优化后的数据结构
 function preprocessConfig(config) {
     const configKeys = config.keys || {};
-    const initialsMap = configKeys.initials || {};
-    const finalsMap = configKeys.finals || {};
+    // 新的数据结构：initials 和 finals 的 key 是按键，value 是声母/韵母（逗号分隔）
+    const initialsMap = configKeys.initials || {};  // { 按键: 声母字符串（逗号分隔） }
+    const finalsMap = configKeys.finals || {};      // { 按键: 韵母字符串（逗号分隔） }
     const zeroInitialsMap = configKeys.zeroInitials || {};
     
-    // 合并声母：先通用声母，再方案专用（方案专用的会覆盖通用的同名键）
-    const allInitials = { ...commonInitials, ...initialsMap };
+    // 将新的数据结构转换为查找用的数据结构：{ 声母: 按键 }
+    // 先添加通用声母
+    const allInitials = { ...commonInitials };
+    
+    // 处理方案专用的声母映射（按键 -> 声母字符串）
+    Object.keys(initialsMap).forEach(key => {
+        const initialsStr = initialsMap[key];
+        // 处理逗号分隔的多个声母
+        const initials = initialsStr.split(',').map(s => s.trim());
+        initials.forEach(initial => {
+            allInitials[initial] = key;
+        });
+    });
     
     // 按长度从长到短排序声母键（优先匹配长的，如 sh, ch, zh）
     const initialKeys = Object.keys(allInitials).sort((a, b) => b.length - a.length);
     
     // 预处理韵母：收集所有韵母，按长度从长到短排序
+    // 将新的数据结构转换为查找用的数据结构：{ 韵母: 按键 }
     const allFinals = [];
-    Object.keys(finalsMap).forEach(finalKey => {
+    Object.keys(finalsMap).forEach(key => {
+        const finalsStr = finalsMap[key];
         // 处理逗号分隔的多个韵母
-        const finals = finalKey.split(',').map(s => s.trim());
+        const finals = finalsStr.split(',').map(s => s.trim());
         finals.forEach(final => {
             allFinals.push({
                 final: final,
-                key: finalsMap[finalKey]
+                key: key
             });
         });
     });
@@ -340,6 +353,10 @@ function generateText() {
     // 初始化统计
     totalValidChars = currentText.filter(item => item.keys && item.keys.trim() !== '').length;
     updateStats();
+    // 初始化进度条（updateStats 会更新进度条，但这里确保初始为 0）
+    if (progressBar) {
+        progressBar.style.width = '0%';
+    }
 }
 
 // 渲染文本（使用 DocumentFragment 优化性能）
@@ -395,36 +412,27 @@ function createVirtualKeyboard() {
     }
     
     const configKeys = currentKeyboardConfig.keys || {};
-    const initialsMap = configKeys.initials || {};  // { 声母: 按键 }
-    const finalsMap = configKeys.finals || {};      // { 韵母: 按键 }
+    // 新的数据结构：initials 和 finals 的 key 是按键，value 是声母/韵母（逗号分隔）
+    const initialsMap = configKeys.initials || {};  // { 按键: 声母字符串（逗号分隔） }
+    const finalsMap = configKeys.finals || {};      // { 按键: 韵母字符串（逗号分隔） }
     const zeroInitialsMap = configKeys.zeroInitials || {};  // { 韵母: 按键组合 }
     
-    // 反向查找：按键 -> 声母列表
+    // 直接使用新的数据结构：按键 -> 声母列表
     const keyToInitials = {};
-    Object.keys(initialsMap).forEach(initialKey => {
-        const key = initialsMap[initialKey];
+    Object.keys(initialsMap).forEach(key => {
+        const initialsStr = initialsMap[key];
         // 处理逗号分隔的多个声母
-        const initials = initialKey.split(',').map(s => s.trim());
-        if (!keyToInitials[key]) {
-            keyToInitials[key] = [];
-        }
-        initials.forEach(initial => {
-            keyToInitials[key].push(initial);
-        });
+        const initials = initialsStr.split(',').map(s => s.trim());
+        keyToInitials[key] = initials;
     });
     
-    // 反向查找：按键 -> 韵母列表
+    // 直接使用新的数据结构：按键 -> 韵母列表
     const keyToFinals = {};
-    Object.keys(finalsMap).forEach(finalKey => {
-        const key = finalsMap[finalKey];
+    Object.keys(finalsMap).forEach(key => {
+        const finalsStr = finalsMap[key];
         // 处理逗号分隔的多个韵母
-        const finals = finalKey.split(',').map(s => s.trim());
-        if (!keyToFinals[key]) {
-            keyToFinals[key] = [];
-        }
-        finals.forEach(final => {
-            keyToFinals[key].push(final);
-        });
+        const finals = finalsStr.split(',').map(s => s.trim());
+        keyToFinals[key] = finals;
     });
     
     // 反向查找：按键组合 -> 零声母韵母列表（用于显示提示，但实际显示在按键上可能不太合适）
@@ -437,7 +445,7 @@ function createVirtualKeyboard() {
         // 第二行和第三行需要偏移，模拟真实键盘布局
         if (rowIndex === 1) {
             // 第二行向左偏移约半个键位（约30px）
-            rowDiv.style.marginLeft = '-30px';
+            rowDiv.style.marginLeft = '30px';
         } else if (rowIndex === 2) {
             // 第三行向左偏移约一个键位（约60px）
             rowDiv.style.marginLeft = '-110px';
@@ -608,11 +616,6 @@ function setupEventListeners() {
     resetBtn.addEventListener('click', reset);
     
     // 设置事件
-    speedSelect.addEventListener('change', (e) => {
-        speed = e.target.value;
-        // 速度设置可以影响动画速度，这里先保存，后续可以用于控制动画
-    });
-    
     difficultySelect.addEventListener('change', (e) => {
         difficulty = e.target.value;
         // 如果正在练习，重新生成文本
@@ -829,7 +832,7 @@ function checkInput() {
             pause();
             setTimeout(() => {
                 showCompletionModal();
-            }, 400);
+            }, 200);
         }
         return;
     }
@@ -968,6 +971,11 @@ function updateStats() {
             setTimeout(() => errorCountEl.classList.remove('updated'), 500);
         }
     }
+    // 更新进度条
+    if (progressBar && totalValidChars > 0) {
+        const progress = (completedChars / totalValidChars) * 100;
+        progressBar.style.width = `${progress}%`;
+    }
 }
 
 // 开始计时
@@ -1098,6 +1106,10 @@ function reset() {
     generatePracticeDataFromText(); // 从 practiceTexts 中随机选择文本生成 practiceData
     generateText();
     updateDisplay();
+    // 重置进度条
+    if (progressBar) {
+        progressBar.style.width = '0%';
+    }
 }
 
 // 显示完成弹窗

@@ -16,15 +16,6 @@
                 <button class="btn" id="resetBtn">重置</button>
                 <div class="divider"></div>
                 <label>
-                    <span class="label-text">速度</span>
-                    <select id="speedSelect">
-                        <option value="slow">慢速</option>
-                        <option value="normal" selected>正常</option>
-                        <option value="fast">快速</option>
-                    </select>
-                </label>
-                <div class="divider"></div>
-                <label>
                     <span class="label-text">练习类型</span>
                     <select id="difficultySelect">
                         <option value="word">单字</option>
@@ -54,6 +45,9 @@
 
         <!-- 中间打字区域 -->
         <div class="typing-area">
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
             <div class="text-container" id="textContainer">
                 <!-- 文本和拼音会动态生成 -->
             </div>
@@ -94,10 +88,10 @@
                 <h4>使用说明</h4>
                 <ul>
                     <li><strong>开始练习：</strong>点击"开始"按钮，在输入框中输入当前高亮汉字对应的双拼按键（2个字母）</li>
-                    <li><strong>输入方式：</strong>可以使用虚拟键盘点击输入，或使用物理键盘直接输入，需要切换为英文输入模式</li>
+                    <li><strong>输入方式：</strong>可以使用虚拟键盘点击输入，或使用物理键盘直接输入-需要切换为英文输入模式</li>
                     <li><strong>输入反馈：</strong>输入正确后文本自动左移，错误时字符显示红色，正确后显示绿色</li>
                     <li><strong>控制按钮：</strong>"开始"开始练习，"暂停/继续"暂停或继续，"重置"重新开始</li>
-                    <li><strong>练习设置：</strong>可调整练习类型（单字/句子）、双拼方案</li>
+                    <li><strong>练习设置：</strong>可调整练习类型（单字/句子）、双拼方案，其中单字练习包含了<strong>3500中文常用字</strong></li>
                     <li><strong>双拼码提示：</strong>勾选"双拼码"可在虚拟键盘上显示声母和韵母提示</li>
                     <li><strong>统计信息：</strong>实时显示总字数、已完成、错误数和用时，可查看详细错误记录</li>
                     <li><strong>完成练习：</strong>完成后会显示统计弹窗，包括用时最长的字和总用时</li>
@@ -112,7 +106,9 @@
         <div class="completion-content">
             <div class="completion-icon">🎉</div>
             <h2>🏆恭喜完成✨</h2>
-            <p id="completionMessage"></p>
+            <p id="completionMessage">
+                <!-- 动态生成内容 -->
+            </p>
             
             <!-- 统计信息 -->
             <div class="completion-stats" id="completionStats">

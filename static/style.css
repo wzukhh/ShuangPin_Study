@@ -166,12 +166,12 @@ select {
     min-width: 80px;
     color: var(--text-color);
     transition: all 0.3s ease;
-    text-align: center;
-    text-align-last: center;
+    text-align: left;
+    text-align-last: left;
 }
 
 select option {
-    text-align: center;
+    text-align: left;
 }
 
 /* 中间打字区域 */
@@ -183,6 +183,31 @@ select option {
     overflow: hidden;
     border: none;
     transition: background 0.3s ease;
+}
+
+/* 进度条容器 */
+.progress-bar-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: var(--divider-color);
+    z-index: 5;
+    overflow: hidden;
+}
+
+/* 进度条 */
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--progress-color, #4a90e2);
+    transition: width 0.3s ease;
+    border-radius: 0 2px 2px 0;
+}
+
+body.dark-theme .progress-bar {
+    background: var(--progress-color, #5ba3f5);
 }
 
 .text-container {
@@ -426,12 +451,13 @@ body.dark-theme .typing-input:disabled {
 .key-main {
     position: relative;
     z-index: 2;
-    left: -5px;  /* 向左偏移5px */
+    left: -7px;  /* 向左偏移5px */
+    top: -4px;
 }
 
 .key-extra {
     position: absolute;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     line-height: 1.2;
     pointer-events: none;
@@ -441,14 +467,14 @@ body.dark-theme .typing-input:disabled {
 }
 
 .key-initials {
-    top: 3px;
+    top: 4px;
     right: 4px;
     color: #d32f2f;
     text-align: right;
 }
 
 .key-finals {
-    bottom: 3px;
+    bottom: 4px;
     right: 4px;
     color: #1976d2;
     text-align: right;
