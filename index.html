@@ -18,11 +18,23 @@
                 <label>
                     <span class="label-text">练习类型</span>
                     <select id="difficultySelect">
-                        <option value="word">单字</option>
                         <option value="sentence" selected>句子</option>
+                        <option value="word">单字</option>
                     </select>
                 </label>
                 <div class="divider"></div>
+                <div id="sourceContainer" style="display: none;">
+                    <label id="sourceLabel">
+                        <span class="label-text">素材来源</span>
+                        <select id="sourceSelect">
+                            <option value="builtin" selected>内置素材</option>
+                            <option value="upload">上传文件</option>
+                        </select>
+                    </label>
+                    <span id="fileNameDisplay" class="file-name-display" style="display: none;"></span>
+                </div>
+                <input type="file" id="fileInput" accept=".txt" style="display: none;">
+                <div class="divider" id="sourceDivider" style="display: none;"></div>
                 <label>
                     <span class="label-text">双拼方案</span>
                     <select id="configSelect">

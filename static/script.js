@@ -1,6 +1,9 @@
 // 练习数据：汉字和对应的拼音（keys 会根据 pinyin 自动生成）
 let practiceData = [];
 
+// 自定义上传的句子数据
+let customSentences = null;
+
 // 虚拟键盘布局（字母按键）
 const keyboardLayout = [
     ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
@@ -55,6 +58,11 @@ const errorModal = document.getElementById('errorModal');
 const errorModalCloseBtn = document.getElementById('errorModalCloseBtn');
 const errorModalBody = document.getElementById('errorModalBody');
 const progressBar = document.getElementById('progressBar');
+const sourceContainer = document.getElementById('sourceContainer');
+const sourceLabel = document.getElementById('sourceLabel');
+const sourceSelect = document.getElementById('sourceSelect');
+const fileInput = document.getElementById('fileInput');
+const fileNameDisplay = document.getElementById('fileNameDisplay');
 
 // 当前键盘配置
 let currentKeyboardConfig = null;
@@ -206,7 +214,8 @@ function generatePracticeDataFromText() {
     let selectedText = '';
     if (difficulty === 'sentence') {
         // 如果选择了句子，随机取一个句子
-        const sentences = practiceTexts.sentence || [];
+        // 优先使用自定义上传的句子，如果没有则使用内置句子
+        const sentences = (customSentences && customSentences.length > 0) ? customSentences : (practiceTexts.sentence || []);
         if (sentences.length === 0) {
             practiceData = [];
             return;
@@ -280,6 +289,20 @@ function init() {
     loadTheme();
     initKeyboardConfig();
     loadShowKeyExtraSetting();
+    // 初始化素材来源显示（根据当前练习类型）
+    if (difficulty === 'sentence') {
+        sourceContainer.style.display = '';
+        const sourceDivider = document.getElementById('sourceDivider');
+        if (sourceDivider) {
+            sourceDivider.style.display = '';
+        }
+    } else {
+        sourceContainer.style.display = 'none';
+        const sourceDivider = document.getElementById('sourceDivider');
+        if (sourceDivider) {
+            sourceDivider.style.display = 'none';
+        }
+    }
     generatePracticeDataFromText(); // 从 practiceTexts 中随机选择文本生成 practiceData
     generateText();
     createVirtualKeyboard();
@@ -618,9 +641,94 @@ function setupEventListeners() {
     // 设置事件
     difficultySelect.addEventListener('change', (e) => {
         difficulty = e.target.value;
+        // 根据练习类型显示/隐藏素材来源选项
+        const sourceDivider = document.getElementById('sourceDivider');
+        if (difficulty === 'sentence') {
+            sourceContainer.style.display = '';
+            if (sourceDivider) {
+                sourceDivider.style.display = '';
+            }
+        } else {
+            sourceContainer.style.display = 'none';
+            if (sourceDivider) {
+                sourceDivider.style.display = 'none';
+            }
+            // 切换到单字模式时，重置为内置素材
+            sourceSelect.value = 'builtin';
+            customSentences = null;
+            fileNameDisplay.style.display = 'none';
+            fileInput.value = '';
+        }
         // 如果正在练习，重新生成文本
         if (isPlaying || currentText.length > 0) {
             reset();
+        }
+    });
+    
+    // 素材来源选择事件
+    sourceSelect.addEventListener('change', (e) => {
+        const source = e.target.value;
+        if (source === 'upload') {
+            // 触发文件选择
+            fileInput.click();
+            // 注意：如果用户取消选择，需要在文件选择事件中处理
+        } else {
+            // 切换回内置素材
+            customSentences = null;
+            fileNameDisplay.style.display = 'none';
+            fileInput.value = ''; // 清空文件输入
+            if (isPlaying || currentText.length > 0) {
+                reset();
+            }
+        }
+    });
+    
+    // 文件选择事件
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) {
+            // 用户取消了文件选择，重置为内置素材
+            sourceSelect.value = 'builtin';
+            return;
+        }
+        
+        // 校验文件类型
+        if (!file.name.toLowerCase().endsWith('.txt')) {
+            alert('只能上传txt文件！');
+            sourceSelect.value = 'builtin';
+            fileInput.value = '';
+            return;
+        }
+        
+        // 校验文件大小（5MB = 5 * 1024 * 1024 字节）
+        if (file.size > 5 * 1024 * 1024) {
+            alert('文件大小不能超过5MB！');
+            sourceSelect.value = 'builtin';
+            fileInput.value = '';
+            return;
+        }
+        
+        try {
+            // 读取并处理文件
+            const sentences = await processFile(file);
+            if (sentences && sentences.length > 0) {
+                customSentences = sentences;
+                // 显示文件名
+                displayFileName(file.name);
+                // 如果正在练习，重新生成文本
+                if (isPlaying || currentText.length > 0) {
+                    reset();
+                }
+            } else {
+                alert('文件内容为空或格式不正确！');
+                sourceSelect.value = 'builtin';
+                fileInput.value = '';
+            }
+        } catch (error) {
+            console.error('文件处理错误:', error);
+            alert('文件处理失败：' + error.message);
+            sourceSelect.value = 'builtin';
+            fileInput.value = '';
         }
     });
     
@@ -1348,6 +1456,193 @@ function markHelpAsViewed() {
         localStorage.setItem('hasViewedHelp', 'true');
         isAutoShowingHelp = false;
     }
+}
+
+// 处理上传的文件
+async function processFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const arrayBuffer = e.target.result;
+                const uint8Array = new Uint8Array(arrayBuffer);
+                
+                // 检测文件编码（简单检测：检查BOM或前几个字节）
+                let encoding = 'utf8';
+                let text = '';
+                
+                // 检查UTF-8 BOM
+                if (uint8Array.length >= 3 && 
+                    uint8Array[0] === 0xEF && 
+                    uint8Array[1] === 0xBB && 
+                    uint8Array[2] === 0xBF) {
+                    encoding = 'utf8';
+                    text = new TextDecoder('utf-8').decode(uint8Array.slice(3));
+                }
+                // 检查UTF-16 LE BOM
+                else if (uint8Array.length >= 2 && 
+                         uint8Array[0] === 0xFF && 
+                         uint8Array[1] === 0xFE) {
+                    encoding = 'utf16le';
+                    text = new TextDecoder('utf-16le').decode(uint8Array.slice(2));
+                }
+                // 检查UTF-16 BE BOM
+                else if (uint8Array.length >= 2 && 
+                         uint8Array[0] === 0xFE && 
+                         uint8Array[1] === 0xFF) {
+                    // 需要转换字节序
+                    const swapped = new Uint8Array(uint8Array.length);
+                    for (let i = 0; i < uint8Array.length - 1; i += 2) {
+                        swapped[i] = uint8Array[i + 1];
+                        swapped[i + 1] = uint8Array[i];
+                    }
+                    text = new TextDecoder('utf-16le').decode(swapped.slice(2));
+                }
+                // 尝试UTF-8解码
+                else {
+                    try {
+                        text = new TextDecoder('utf-8', { fatal: true }).decode(uint8Array);
+                        encoding = 'utf8';
+                    } catch (utf8Error) {
+                        // UTF-8解码失败，尝试GBK
+                        try {
+                            // 使用简单的GBK检测：如果包含大量0x80-0xFF范围内的字节，可能是GBK
+                            let gbkLikely = false;
+                            for (let i = 0; i < Math.min(1000, uint8Array.length); i++) {
+                                if (uint8Array[i] >= 0x80 && uint8Array[i] <= 0xFF) {
+                                    gbkLikely = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (gbkLikely) {
+                                // 使用TextDecoder的GBK编码（如果浏览器支持）
+                                // 如果不支持，使用第三方库或手动转换
+                                // 这里使用一个简单的方案：尝试使用gb2312或gb18030
+                                try {
+                                    text = new TextDecoder('gb18030').decode(uint8Array);
+                                    encoding = 'gbk';
+                                } catch (gbkError) {
+                                    // 如果浏览器不支持GBK，尝试使用第三方方法
+                                    // 这里我们使用一个简单的转换：将字节转换为字符串
+                                    // 注意：这不是完美的GBK解码，但可以处理大部分情况
+                                    text = decodeGBK(uint8Array);
+                                    encoding = 'gbk';
+                                }
+                            } else {
+                                // 可能是纯ASCII或UTF-8
+                                text = new TextDecoder('utf-8', { fatal: false }).decode(uint8Array);
+                                encoding = 'utf8';
+                            }
+                        } catch (gbkError) {
+                            reject(new Error('无法识别文件编码，请确保文件为UTF-8或GBK编码'));
+                            return;
+                        }
+                    }
+                }
+                
+                // 提取句子（按行分割）
+                const lines = text.split(/\r?\n/);
+                const sentences = [];
+                
+                for (let i = 0; i < lines.length && sentences.length < 1000; i++) {
+                    const line = lines[i].trim();
+                    if (line.length === 0) continue;
+                    
+                    // 计算汉字数量（中文字符范围：\u4e00-\u9fff）
+                    const chineseChars = line.match(/[\u4e00-\u9fff]/g);
+                    const chineseCount = chineseChars ? chineseChars.length : 0;
+                    
+                    // 跳过超过1000汉字的行
+                    if (chineseCount > 1000) {
+                        continue;
+                    }
+                    
+                    // 只保留包含汉字的行
+                    if (chineseCount > 0) {
+                        sentences.push(line);
+                    }
+                }
+                
+                if (sentences.length === 0) {
+                    reject(new Error('文件中没有找到有效的句子（包含汉字且不超过1000字）'));
+                    return;
+                }
+                
+                resolve(sentences);
+            } catch (error) {
+                reject(error);
+            }
+        };
+        
+        reader.onerror = function() {
+            reject(new Error('文件读取失败'));
+        };
+        
+        // 读取为ArrayBuffer以便检测编码
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// GBK解码函数
+function decodeGBK(uint8Array) {
+    // 优先使用gb18030编码（GBK的超集，现代浏览器通常支持）
+    try {
+        return new TextDecoder('gb18030').decode(uint8Array);
+    } catch (e) {
+        // 如果浏览器不支持gb18030，尝试使用第三方库或手动处理
+        // 这里提供一个基本的fallback：将无法解码的字节替换为问号
+        // 注意：这不是完美的GBK解码，但对于大多数情况应该足够
+        try {
+            // 尝试使用gb2312（GBK的子集）
+            return new TextDecoder('gb2312').decode(uint8Array);
+        } catch (e2) {
+            // 最后的fallback：只保留ASCII字符，其他字符替换为问号
+            let result = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+                const byte = uint8Array[i];
+                if (byte < 0x80) {
+                    result += String.fromCharCode(byte);
+                } else {
+                    // 跳过GBK双字节字符的第一个字节，在下一个字节处理
+                    if (i + 1 < uint8Array.length) {
+                        const byte2 = uint8Array[i + 1];
+                        if (byte >= 0x81 && byte <= 0xFE && byte2 >= 0x40 && byte2 <= 0xFE) {
+                            // 这是一个GBK双字节字符，但无法解码，用问号替代
+                            result += '?';
+                            i++; // 跳过下一个字节
+                        } else {
+                            result += '?';
+                        }
+                    } else {
+                        result += '?';
+                    }
+                }
+            }
+            return result;
+        }
+    }
+}
+
+// 显示文件名
+function displayFileName(fileName) {
+    if (!fileNameDisplay) return;
+    
+    // 如果文件名太长，进行截断处理
+    const maxLength = 30;
+    let displayName = fileName;
+    
+    if (fileName.length > maxLength) {
+        const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+        const ext = fileName.substring(fileName.lastIndexOf('.'));
+        const maxNameLength = maxLength - ext.length - 3; // 保留扩展名和省略号
+        displayName = nameWithoutExt.substring(0, maxNameLength) + '...' + ext;
+    }
+    
+    fileNameDisplay.textContent = `已加载: ${displayName}`;
+    fileNameDisplay.style.display = 'inline-block';
+    fileNameDisplay.title = fileName; // 完整文件名作为提示
 }
 
 // 页面加载完成后初始化
