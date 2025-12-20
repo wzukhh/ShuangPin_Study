@@ -4,6 +4,9 @@ let practiceData = [];
 // 自定义上传的句子数据
 let customSentences = null;
 
+// 虚拟键盘布局（数字按键）
+const numberLayout = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+
 // 虚拟键盘布局（字母按键）
 const keyboardLayout = [
     ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
@@ -48,7 +51,7 @@ const themeIcon = document.getElementById('themeIcon');
 const completionModal = document.getElementById('completionModal');
 const completionCloseBtn = document.getElementById('completionCloseBtn');
 const configSelect = document.getElementById('configSelect');
-const showKeyExtraCheckbox = document.getElementById('showKeyExtra');
+const showKeyExtraBtn = document.getElementById('showKeyExtraBtn');
 const totalCharsEl = document.getElementById('totalChars');
 const completedCharsEl = document.getElementById('completedChars');
 const errorCountEl = document.getElementById('errorCount');
@@ -58,17 +61,26 @@ const errorModal = document.getElementById('errorModal');
 const errorModalCloseBtn = document.getElementById('errorModalCloseBtn');
 const errorModalBody = document.getElementById('errorModalBody');
 const progressBar = document.getElementById('progressBar');
+const settingsModal = document.getElementById('settingsModal');
 const sourceContainer = document.getElementById('sourceContainer');
 const sourceLabel = document.getElementById('sourceLabel');
 const sourceSelect = document.getElementById('sourceSelect');
 const fileInput = document.getElementById('fileInput');
 const fileNameDisplay = document.getElementById('fileNameDisplay');
+const settingsBtn = document.getElementById('settingsBtn');
+const skipNonChineseCheckbox = document.getElementById('skipNonChinese');
+const manageMaterialsBtn = document.getElementById('manageMaterialsBtn');
+const materialsModal = document.getElementById('materialsModal');
+const materialsModalCloseBtn = document.getElementById('materialsModalCloseBtn');
 
 // 当前键盘配置
 let currentKeyboardConfig = null;
 
 // 是否显示声母/韵母
 let showKeyExtra = true;
+
+// 是否跳过数字/字母
+let skipNonChinese = true;
 
 // 缓存的配置预处理结果
 let cachedConfigData = null;
@@ -150,6 +162,11 @@ function generateKeysFromPinyin(pinyin, config) {
     }
     
     const pinyinLower = pinyin.toLowerCase().trim();
+    
+    // 如果是数字或字母，直接返回它自己（对应的按键）
+    if (/^[0-9a-zA-Z]$/.test(pinyinLower)) {
+        return pinyinLower;
+    }
     
     // 获取预处理后的配置数据（带缓存）
     const configData = getCachedConfigData(config);
@@ -264,18 +281,22 @@ function generatePracticeDataFromText() {
     
     // 3. 根据 textWithoutSpaces 中汉字的索引，取转换后对应索引处的拼音，非汉字设置为 null
     const charArray = Array.from(textWithoutSpaces);
-    let pinyinIndex = 0; // 拼音数组的索引
+    let index = 0; // 拼音数组的索引
     
     charArray.forEach(item => {
         let pinyin = null;
-        // 使用正则表达式，判断当前item是不是汉字
+        
+        // 如果没有启用"跳过数字/字母"设置，处理汉字、数字和字母
         if (/^[\u4e00-\u9fa5]$/.test(item)) {
             // 如果是汉字，从拼音数组中取对应索引的拼音
-            if (pinyinIndex < pinyinArray.length) {
-                pinyin = pinyinArray[pinyinIndex];
+            if (index < pinyinArray.length) {
+                pinyin = pinyinArray[index];
             }
+        } else if (!skipNonChinese && /^[0-9a-zA-Z]$/.test(item)) {
+            // 如果是数字或字母，pinyin就是它自己（对应的按键）
+            pinyin = item.toLowerCase();
         }
-        pinyinIndex++;
+        index++;
         practiceData.push({
             pinyin: pinyin,
             char: item,
@@ -289,24 +310,36 @@ function init() {
     loadTheme();
     initKeyboardConfig();
     loadShowKeyExtraSetting();
+    loadSkipNonChineseSetting(); // 加载跳过数字/字母设置
+    loadDifficultySetting(); // 加载练习模式设置
+    setupEventListeners(); // 先设置事件监听器
     // 初始化素材来源显示（根据当前练习类型）
+    const sourceDivider = document.getElementById('sourceDivider');
     if (difficulty === 'sentence') {
         sourceContainer.style.display = '';
-        const sourceDivider = document.getElementById('sourceDivider');
         if (sourceDivider) {
             sourceDivider.style.display = '';
         }
-    } else {
-        sourceContainer.style.display = 'none';
-        const sourceDivider = document.getElementById('sourceDivider');
-        if (sourceDivider) {
-            sourceDivider.style.display = 'none';
+        if (sourceSelect) {
+            sourceSelect.disabled = false;
         }
+        // 尝试加载保存的上传文件（在事件监听器设置之后）
+        loadUploadedFile();
+    } else {
+        // 单字模式：显示但禁用，固定为内置素材
+        sourceContainer.style.display = '';
+        if (sourceDivider) {
+            sourceDivider.style.display = '';
+        }
+        if (sourceSelect) {
+            sourceSelect.value = 'builtin';
+            sourceSelect.disabled = true;
+        }
+        fileNameDisplay.style.display = 'none';
     }
     generatePracticeDataFromText(); // 从 practiceTexts 中随机选择文本生成 practiceData
     generateText();
     createVirtualKeyboard();
-    setupEventListeners();
     updateDisplay();
     checkAndShowHelp(); // 检查是否需要显示使用说明
 }
@@ -319,14 +352,63 @@ function loadShowKeyExtraSetting() {
     } else {
         showKeyExtra = true; // 默认显示
     }
-    if (showKeyExtraCheckbox) {
-        showKeyExtraCheckbox.checked = showKeyExtra;
+    updateShowKeyExtraButton();
+}
+
+// 更新双拼码按钮的显示状态
+function updateShowKeyExtraButton() {
+    if (showKeyExtraBtn) {
+        if (showKeyExtra) {
+            showKeyExtraBtn.classList.add('active');
+        } else {
+            showKeyExtraBtn.classList.remove('active');
+        }
     }
 }
 
 // 保存显示声母/韵母的设置
 function saveShowKeyExtraSetting() {
     localStorage.setItem('showKeyExtra', showKeyExtra.toString());
+}
+
+// 加载跳过数字/字母的设置
+function loadSkipNonChineseSetting() {
+    const saved = localStorage.getItem('skipNonChinese');
+    if (saved !== null) {
+        skipNonChinese = saved === 'true';
+    } else {
+        skipNonChinese = true; // 默认跳过
+    }
+    if (skipNonChineseCheckbox) {
+        skipNonChineseCheckbox.checked = skipNonChinese;
+    }
+}
+
+// 保存跳过数字/字母的设置
+function saveSkipNonChineseSetting() {
+    localStorage.setItem('skipNonChinese', skipNonChinese.toString());
+}
+
+// 加载练习模式设置
+function loadDifficultySetting() {
+    const saved = localStorage.getItem('difficulty');
+    if (saved === 'word' || saved === 'sentence') {
+        difficulty = saved;
+        if (difficultySelect) {
+            difficultySelect.value = difficulty;
+        }
+    } else {
+        // 默认使用句子模式
+        difficulty = 'sentence';
+        if (difficultySelect) {
+            difficultySelect.value = 'sentence';
+        }
+    }
+}
+
+// 保存练习模式设置
+function saveDifficultySetting() {
+    localStorage.setItem('difficulty', difficulty);
 }
 
 // 初始化键盘配置
@@ -370,7 +452,6 @@ function generateText() {
     scrollPosition = -14; // 初始向左偏移一个字符位置（42px = 28px宽度 + 14px间隔）
     // 跳过不需要输入的字符，找到第一个需要输入的字符
     skipToNextInputChar();
-    highlightKeys(''); // 清除高亮
     renderText();
     
     // 初始化统计
@@ -384,7 +465,34 @@ function generateText() {
 
 // 渲染文本（使用 DocumentFragment 优化性能）
 function renderText() {
-    // 使用 DocumentFragment 批量操作 DOM，减少重排和重绘
+    // 单字模式：只显示当前字
+    if (difficulty === 'word') {
+        textContainer.innerHTML = '';
+        if (currentText.length === 0 || currentIndex >= currentText.length) {
+            return;
+        }
+        
+        const currentItem = currentText[currentIndex];
+        const textItem = document.createElement('div');
+        textItem.className = 'text-item';
+        textItem.style.transform = `translateX(${scrollPosition}px)`; // 居中显示
+        
+        const pinyinEl = document.createElement('div');
+        pinyinEl.className = 'pinyin';
+        // 如果 pinyin 为 null 或空字符串，使用不可见字符保持高度占用
+        pinyinEl.textContent = (currentItem.pinyin && currentItem.pinyin.trim() !== '') ? currentItem.pinyin : '\u200B'; // 零宽空格保持高度
+        
+        const charEl = document.createElement('div');
+        charEl.className = 'character current';
+        charEl.textContent = currentItem.char;
+        
+        textItem.appendChild(pinyinEl);
+        textItem.appendChild(charEl);
+        textContainer.appendChild(textItem);
+        return;
+    }
+    
+    // 句子模式：显示所有字
     const fragment = document.createDocumentFragment();
     
     currentText.forEach((item, index) => {
@@ -396,8 +504,8 @@ function renderText() {
         
         const pinyinEl = document.createElement('div');
         pinyinEl.className = 'pinyin';
-        // 如果 pinyin 为 null 或空字符串，不显示拼音（pinyin 和 keys 后期会通过函数生成）
-        pinyinEl.textContent = (item.pinyin && item.pinyin.trim() !== '') ? item.pinyin : '';
+        // 如果 pinyin 为 null 或空字符串，使用不可见字符保持高度占用
+        pinyinEl.textContent = (item.pinyin && item.pinyin.trim() !== '') ? item.pinyin : '\u200B'; // 零宽空格保持高度
         
         const charEl = document.createElement('div');
         charEl.className = 'character';
@@ -460,6 +568,27 @@ function createVirtualKeyboard() {
     
     // 反向查找：按键组合 -> 零声母韵母列表（用于显示提示，但实际显示在按键上可能不太合适）
     // 这里先不处理 zeroInitials 的显示，因为它是两个按键的组合
+    
+    // 先创建数字行（高度为一半）
+    const numberRowDiv = document.createElement('div');
+    numberRowDiv.className = 'keyboard-row';
+    
+    numberLayout.forEach(key => {
+        const keyBtn = document.createElement('div');
+        keyBtn.className = 'key key-number';
+        keyBtn.dataset.key = key;
+        
+        // 主按键文字
+        const keyMain = document.createElement('div');
+        keyMain.className = 'key-main';
+        keyMain.textContent = key;
+        keyBtn.appendChild(keyMain);
+        
+        keyBtn.addEventListener('click', () => handleKeyClick(key));
+        numberRowDiv.appendChild(keyBtn);
+    });
+    
+    virtualKeyboard.appendChild(numberRowDiv);
     
     keyboardLayout.forEach((row, rowIndex) => {
         const rowDiv = document.createElement('div');
@@ -579,13 +708,14 @@ function handleKeyClick(key) {
     typingInput.value = currentValue + key;
     typingInput.focus();
     
-    // 视觉反馈
+    // 高亮按键（白色）
     const keyBtn = document.querySelector(`[data-key="${key}"]`);
     if (keyBtn) {
-        keyBtn.classList.add('pressed');
+        keyBtn.classList.add('active');
+        // 延迟恢复原色（200ms）
         setTimeout(() => {
-            keyBtn.classList.remove('pressed');
-        }, 150);
+            keyBtn.classList.remove('active');
+        }, 100);
     }
     
     checkInput();
@@ -605,8 +735,8 @@ function setupEventListeners() {
             // 允许退格
             return;
         }
-        // 阻止非字母字符
-        if (!/^[a-z]$/i.test(e.key)) {
+        // 允许字母和数字
+        if (!/^[a-z0-9]$/i.test(e.key)) {
             e.preventDefault();
         }
     });
@@ -614,21 +744,29 @@ function setupEventListeners() {
     // 物理键盘事件
     document.addEventListener('keydown', (e) => {
         if (!isPlaying) return;
-        const key = e.key.toLowerCase();
-        if (/^[a-z]$/.test(key)) {
-            const keyBtn = document.querySelector(`[data-key="${key}"]`);
+        const key = e.key;
+        // 处理字母（转换为小写）和数字
+        if (/^[a-z]$/i.test(key)) {
+            const keyLower = key.toLowerCase();
+            const keyBtn = document.querySelector(`[data-key="${keyLower}"]`);
             if (keyBtn) {
-                keyBtn.classList.add('pressed');
+                // 高亮按键（白色）
+                keyBtn.classList.add('active');
+                // 延迟恢复原色（200ms）
+                setTimeout(() => {
+                    keyBtn.classList.remove('active');
+                }, 100);
             }
-        }
-    });
-    
-    document.addEventListener('keyup', (e) => {
-        const key = e.key.toLowerCase();
-        if (/^[a-z]$/.test(key)) {
+        } else if (/^[0-9]$/.test(key)) {
+            // 数字不需要转换为小写
             const keyBtn = document.querySelector(`[data-key="${key}"]`);
             if (keyBtn) {
-                keyBtn.classList.remove('pressed');
+                // 高亮按键（白色）
+                keyBtn.classList.add('active');
+                // 延迟恢复原色（200ms）
+                setTimeout(() => {
+                    keyBtn.classList.remove('active');
+                }, 100);
             }
         }
     });
@@ -638,26 +776,97 @@ function setupEventListeners() {
     pauseBtn.addEventListener('click', pause);
     resetBtn.addEventListener('click', reset);
     
+    // 设置按钮事件
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (settingsModal) {
+                settingsModal.classList.add('show');
+            }
+        });
+    }
+    
+    // 点击设置弹窗外部关闭
+    if (settingsModal) {
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('show');
+            }
+        });
+    }
+    
+    // 跳过数字/字母复选框事件
+    if (skipNonChineseCheckbox) {
+        skipNonChineseCheckbox.addEventListener('change', (e) => {
+            skipNonChinese = e.target.checked;
+            saveSkipNonChineseSetting();
+            // 如果正在练习，重新生成文本
+            if (isPlaying || currentText.length > 0) {
+                reset();
+            } else {
+                generatePracticeDataFromText();
+                generateText();
+            }
+        });
+    }
+    
+    // 管理练习素材按钮事件
+    if (manageMaterialsBtn) {
+        manageMaterialsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (materialsModal) {
+                materialsModal.classList.add('show');
+            }
+        });
+    }
+    
+    // 管理练习素材弹窗关闭按钮
+    if (materialsModalCloseBtn) {
+        materialsModalCloseBtn.addEventListener('click', () => {
+            if (materialsModal) {
+                materialsModal.classList.remove('show');
+            }
+        });
+    }
+    
+    // 点击管理练习素材弹窗外部关闭
+    if (materialsModal) {
+        materialsModal.addEventListener('click', (e) => {
+            if (e.target === materialsModal) {
+                materialsModal.classList.remove('show');
+            }
+        });
+    }
+    
     // 设置事件
     difficultySelect.addEventListener('change', (e) => {
         difficulty = e.target.value;
-        // 根据练习类型显示/隐藏素材来源选项
+        saveDifficultySetting(); // 保存练习模式选择
+        // 根据练习类型设置素材来源选项
         const sourceDivider = document.getElementById('sourceDivider');
         if (difficulty === 'sentence') {
+            // 句子模式：显示并启用
             sourceContainer.style.display = '';
             if (sourceDivider) {
                 sourceDivider.style.display = '';
             }
-        } else {
-            sourceContainer.style.display = 'none';
-            if (sourceDivider) {
-                sourceDivider.style.display = 'none';
+            if (sourceSelect) {
+                sourceSelect.disabled = false;
             }
-            // 切换到单字模式时，重置为内置素材
-            sourceSelect.value = 'builtin';
+        } else {
+            // 单字模式：显示但禁用，固定为内置素材
+            sourceContainer.style.display = '';
+            if (sourceDivider) {
+                sourceDivider.style.display = '';
+            }
+            if (sourceSelect) {
+                sourceSelect.value = 'builtin';
+                sourceSelect.disabled = true;
+            }
             customSentences = null;
             fileNameDisplay.style.display = 'none';
             fileInput.value = '';
+            clearUploadedFile(); // 清除保存的文件信息
         }
         // 如果正在练习，重新生成文本
         if (isPlaying || currentText.length > 0) {
@@ -669,14 +878,18 @@ function setupEventListeners() {
     sourceSelect.addEventListener('change', (e) => {
         const source = e.target.value;
         if (source === 'upload') {
-            // 触发文件选择
-            fileInput.click();
+            // 如果已经有上传的文件（从localStorage恢复），不需要弹出文件选择对话框
+            if (!customSentences) {
+                // 触发文件选择
+                fileInput.click();
+            }
             // 注意：如果用户取消选择，需要在文件选择事件中处理
         } else {
             // 切换回内置素材
             customSentences = null;
             fileNameDisplay.style.display = 'none';
             fileInput.value = ''; // 清空文件输入
+            clearUploadedFile(); // 清除保存的文件信息
             if (isPlaying || currentText.length > 0) {
                 reset();
             }
@@ -713,6 +926,8 @@ function setupEventListeners() {
             const sentences = await processFile(file);
             if (sentences && sentences.length > 0) {
                 customSentences = sentences;
+                // 保存文件信息到 localStorage
+                saveUploadedFile(file.name, sentences);
                 // 显示文件名
                 displayFileName(file.name);
                 // 如果正在练习，重新生成文本
@@ -749,12 +964,16 @@ function setupEventListeners() {
     });
     
     // 显示声母/韵母复选框事件
-    showKeyExtraCheckbox.addEventListener('change', (e) => {
-        showKeyExtra = e.target.checked;
-        saveShowKeyExtraSetting();
-        // 重新创建虚拟键盘以应用设置
-        createVirtualKeyboard();
-    });
+    // 双拼码按钮事件
+    if (showKeyExtraBtn) {
+        showKeyExtraBtn.addEventListener('click', (e) => {
+            showKeyExtra = !showKeyExtra;
+            saveShowKeyExtraSetting();
+            updateShowKeyExtraButton();
+            // 重新创建虚拟键盘以应用设置
+            createVirtualKeyboard();
+        });
+    }
     
     // 帮助面板
     helpToggle.addEventListener('click', (e) => {
@@ -878,29 +1097,59 @@ function highlightKeys(keys) {
     }
     
     highlightTimeout = requestAnimationFrame(() => {
-        // 清除之前的高亮
-        if (lastHighlightedKeys) {
-            lastHighlightedKeys.split('').forEach(key => {
-                const keyEl = document.querySelector(`.key[data-key="${key.toLowerCase()}"]`);
-                if (keyEl) {
-                    keyEl.classList.remove('active');
-                }
-            });
-        }
-        
-        // 高亮当前输入的按键
+        // 先高亮当前输入的按键，再清除之前高亮的按键（避免闪烁）
         if (keys) {
             keys.split('').forEach(key => {
-                const keyEl = document.querySelector(`.key[data-key="${key.toLowerCase()}"]`);
+                // 数字不需要转换为小写
+                const keyToMatch = /^[0-9]$/.test(key) ? key : key.toLowerCase();
+                const keyEl = document.querySelector(`.key[data-key="${keyToMatch}"]`);
                 if (keyEl) {
                     keyEl.classList.add('active');
                 }
             });
-            lastHighlightedKeys = keys;
-        } else {
+        }
+        
+        // 清除之前高亮的按键（只清除不在新按键列表中的）
+        if (lastHighlightedKeys) {
+            lastHighlightedKeys.split('').forEach(key => {
+                // 如果这个按键不在新的按键列表中，才清除
+                if (!keys || !keys.includes(key)) {
+                    // 数字不需要转换为小写
+                    const keyToMatch = /^[0-9]$/.test(key) ? key : key.toLowerCase();
+                    const keyEl = document.querySelector(`.key[data-key="${keyToMatch}"]`);
+                    if (keyEl) {
+                        keyEl.classList.remove('active');
+                    }
+                }
+            });
+        }
+        
+        // 如果没有新的按键，清除所有高亮
+        if (!keys) {
+            if (lastHighlightedKeys) {
+                lastHighlightedKeys.split('').forEach(key => {
+                    // 数字不需要转换为小写
+                    const keyToMatch = /^[0-9]$/.test(key) ? key : key.toLowerCase();
+                    const keyEl = document.querySelector(`.key[data-key="${keyToMatch}"]`);
+                    if (keyEl) {
+                        keyEl.classList.remove('active');
+                    }
+                });
+            }
             lastHighlightedKeys = '';
+        } else {
+            lastHighlightedKeys = keys;
         }
     });
+}
+
+// 清除所有按键的高亮（用于完成时彻底清除）
+function clearHighlightKeys() {
+    // 清除所有按键的高亮（不依赖lastHighlightedKeys，确保清除所有）
+    document.querySelectorAll('.key.active').forEach(keyEl => {
+        keyEl.classList.remove('active');
+    });
+    lastHighlightedKeys = '';
 }
 
 // 检查输入
@@ -911,8 +1160,6 @@ function checkInput() {
     }
     
     if (currentIndex >= currentText.length) {
-        // 清除高亮
-        highlightKeys('');
         return;
     }
     
@@ -931,12 +1178,13 @@ function checkInput() {
     
     // 如果当前字符不需要输入，自动跳过
     if (!currentItem.keys || currentItem.keys.trim() === '') {
-        highlightKeys('');
         skipToNextInputChar();
         updateDisplay();
         
         // 检查是否完成
         if (currentIndex >= currentText.length) {
+            // 立即清除高亮，不等待延迟
+            clearHighlightKeys();
             pause();
             setTimeout(() => {
                 showCompletionModal();
@@ -947,9 +1195,6 @@ function checkInput() {
     
     const inputValue = typingInput.value.toLowerCase().trim();
     const expectedKeys = currentItem.keys.toLowerCase();
-    
-    // 高亮当前输入的按键
-    highlightKeys(inputValue);
     
     // 首先判断输入按键的数量是否和 keys 字符数量相同
     if (inputValue.length !== expectedKeys.length) {
@@ -966,7 +1211,6 @@ function checkInput() {
             }
             // 清空输入，让用户重新输入
             typingInput.value = '';
-            highlightKeys('');
         }
         // 如果输入长度小于期望长度，继续等待输入
         return;
@@ -974,10 +1218,7 @@ function checkInput() {
     
     // 输入长度匹配，判断输入按键顺序是否和 keys 顺序完全一致
     if (inputValue === expectedKeys) {
-        // 输入正确，短暂保持高亮后清除
-        setTimeout(() => {
-            highlightKeys('');
-        }, 200);
+        // 输入正确，不需要额外的高亮处理（按键已经独立高亮了）
         
         // 输入正确，记录该字的输入时间
         if (currentCharStartTime && isPlaying) {
@@ -1004,10 +1245,27 @@ function checkInput() {
         
         // 输入正确
         currentIndex++;
-        completedChars++;
+        if (difficulty !== 'word') {
+            completedChars++;
+        }
         typingInput.value = '';
         
-        // 更新滚动位置（每个汉字宽度28px + 间隔14px = 42px）
+        // 单字模式：完成一轮后从头开始
+        if (difficulty === 'word') {
+            if (currentIndex >= currentText.length) {
+                // 完成一轮，从头开始
+                currentIndex = 0;
+                // 重新打乱顺序
+                shuffleArray(currentText);
+            }
+            // 跳过不需要输入的字符
+            skipToNextInputChar();
+            updateDisplay();
+            updateStats();
+            return;
+        }
+        
+        // 句子模式：更新滚动位置（每个汉字宽度28px + 间隔14px = 42px）
         scrollPosition -= 42;
         
         // 跳过不需要输入的字符
@@ -1018,16 +1276,26 @@ function checkInput() {
         
         // 检查是否完成
         if (currentIndex >= currentText.length) {
+            // 取消所有待执行的highlightKeys延迟
+            if (highlightTimeout) {
+                cancelAnimationFrame(highlightTimeout);
+                highlightTimeout = null;
+            }
+            // 立即清除高亮，不等待延迟
+            clearHighlightKeys();
             pause();
             // 延迟显示完成弹窗，等待文字移动动画完成
             setTimeout(() => {
+                // 再次确保清除高亮（防止延迟的highlightKeys执行）
+                clearHighlightKeys();
                 showCompletionModal();
             }, 200);
         }
     } else {
         // 输入错误（长度相同但顺序不对）
         recordError(inputValue);
-        const charEl = document.querySelectorAll('.character')[currentIndex];
+        // 单字模式和句子模式都使用相同的选择器
+        const charEl = document.querySelector('.character.current');
         if (charEl) {
             charEl.classList.add('error');
             setTimeout(() => {
@@ -1036,7 +1304,10 @@ function checkInput() {
         }
         // 清空输入，让用户重新输入
         typingInput.value = '';
-        highlightKeys('');
+        // 单字模式下也需要更新统计
+        if (difficulty === 'word') {
+            updateStats();
+        }
     }
 }
 
@@ -1049,7 +1320,9 @@ function recordError(inputValue) {
     }
     errorRecords[charIndex].push({
         input: inputValue,
-        time: Date.now()
+        time: Date.now(),
+        pinyin: currentText[charIndex].pinyin,
+        keys: currentText[charIndex].keys
     });
     
     // 增加该字的输入次数
@@ -1060,29 +1333,71 @@ function recordError(inputValue) {
     updateStats();
 }
 
+// 打乱数组顺序（Fisher-Yates 洗牌算法）
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
 // 更新统计显示
 function updateStats() {
-    if (totalCharsEl) {
-        totalCharsEl.textContent = totalValidChars;
-        totalCharsEl.classList.add('updated');
-        setTimeout(() => totalCharsEl.classList.remove('updated'), 500);
-    }
-    if (completedCharsEl) {
-        completedCharsEl.textContent = completedChars;
-        completedCharsEl.classList.add('updated');
-        setTimeout(() => completedCharsEl.classList.remove('updated'), 500);
-    }
-    if (errorCountEl) {
-        errorCountEl.textContent = errorCount;
-        if (errorCount > 0) {
-            errorCountEl.classList.add('updated');
-            setTimeout(() => errorCountEl.classList.remove('updated'), 500);
+    // 辅助函数：更新统计值并添加动画
+    const updateStatValue = (element, value) => {
+        if (!element) return;
+        element.textContent = value;
+        element.classList.add('updated');
+        setTimeout(() => element.classList.remove('updated'), 500);
+    };
+    
+    // 辅助函数：设置统计项的显示/隐藏
+    const setStatVisibility = (element, visible) => {
+        if (!element) return;
+        const parent = element.parentElement;
+        if (parent) parent.style.display = visible ? 'flex' : 'none';
+    };
+    
+    if (difficulty === 'word') {
+        // 单字模式：只显示错误数
+        setStatVisibility(totalCharsEl, false);
+        setStatVisibility(completedCharsEl, false);
+        setStatVisibility(timeElapsedEl, false);
+        
+        if (errorCountEl) {
+            setStatVisibility(errorCountEl, true);
+            updateStatValue(errorCountEl, errorCount);
         }
-    }
-    // 更新进度条
-    if (progressBar && totalValidChars > 0) {
-        const progress = (completedChars / totalValidChars) * 100;
-        progressBar.style.width = `${progress}%`;
+        
+        // 单字模式不显示进度条
+        if (progressBar) {
+            progressBar.style.width = '0%';
+        }
+    } else {
+        // 句子模式：显示所有统计项并更新值
+        setStatVisibility(totalCharsEl, true);
+        setStatVisibility(errorCountEl, true);
+        setStatVisibility(timeElapsedEl, true);
+        
+        if (completedCharsEl) {
+            setStatVisibility(completedCharsEl, true);
+            const parent = completedCharsEl.parentElement;
+            if (parent) {
+                const label = parent.querySelector('.stats-label');
+                if (label) label.textContent = '已完成:';
+            }
+        }
+        
+        // 更新所有统计值
+        updateStatValue(totalCharsEl, totalValidChars);
+        updateStatValue(completedCharsEl, completedChars);
+        updateStatValue(errorCountEl, errorCount);
+        
+        // 更新进度条
+        if (progressBar && totalValidChars > 0) {
+            const progress = (completedChars / totalValidChars) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
     }
 }
 
@@ -1125,12 +1440,16 @@ function stopTimer() {
 function updateDisplay() {
     renderText();
     
+    // 检查是否已完成
+    const isCompleted = currentIndex >= currentText.length && currentText.length > 0;
+    
     // 更新按钮状态
     if (isPlaying) {
         // 正在播放状态
         startBtn.disabled = true;
         pauseBtn.disabled = false;
-        pauseBtn.textContent = '暂停';
+        pauseBtn.textContent = '⏸️';
+        pauseBtn.title = '暂停';
         typingInput.disabled = false;
         typingInput.focus();
     } else {
@@ -1138,15 +1457,27 @@ function updateDisplay() {
         startBtn.disabled = false;
         typingInput.disabled = true;
         
-        if (hasStarted) {
-            // 已经点击过开始，现在是暂停状态，显示"继续"
+        if (isCompleted) {
+            // 已完成状态，显示暂停按钮但不可点击
+            pauseBtn.disabled = true;
+            pauseBtn.textContent = '⏸️';
+            pauseBtn.title = '已完成';
+            startBtn.textContent = '▶️';
+            startBtn.title = '重新开始';
+        } else if (hasStarted) {
+            // 已经点击过开始，现在是暂停状态，显示"继续"（使用不同图标区分）
             pauseBtn.disabled = false;
-            pauseBtn.textContent = '继续';
-            startBtn.textContent = '重新开始';
+            pauseBtn.textContent = '⏯️';
+            pauseBtn.title = '继续';
+            startBtn.textContent = '▶️';
+            startBtn.title = '重新开始';
         } else {
             // 初始状态，暂停按钮不可点击
             pauseBtn.disabled = true;
-            pauseBtn.textContent = '暂停';
+            pauseBtn.textContent = '⏸️';
+            pauseBtn.title = '暂停';
+            startBtn.textContent = '▶️';
+            startBtn.title = '开始';
         }
     }
 }
@@ -1195,11 +1526,9 @@ function pause() {
 function reset() {
     isPlaying = false;
     hasStarted = false; // 重置开始标志
-    startBtn.textContent = '开始';
     currentIndex = 0;
     scrollPosition = -14; // 重置时也向左偏移半个字符位置
     typingInput.value = '';
-    highlightKeys(''); // 清除高亮
     stopTimer();
     startTime = null;
     pausedTime = 0; // 重置暂停时间
@@ -1226,7 +1555,8 @@ function showCompletionModal() {
     
     // 生成统计信息
     generateCompletionStats();
-    
+    // 清除高亮按键
+    clearHighlightKeys();
     completionModal.classList.add('show');
     startFireworks();
 }
@@ -1409,12 +1739,17 @@ function showErrorModal() {
             
             if (item && errors && errors.length > 0) {
                 html += '<div class="error-record-item">';
-                html += `<div class="error-record-char">字符: ${item.char} (索引: ${index})</div>`;
+                // 将字符和索引中的字母数字用等宽字体包裹
+                const charDisplay = item.char.replace(/([a-zA-Z0-9]+)/g, '<span class="monospace">$1</span>');
+                const indexDisplay = index.toString().replace(/([a-zA-Z0-9]+)/g, '<span class="monospace">$1</span>');
+                html += `<div class="error-record-char">[ ${charDisplay} ${item.pinyin} ] 双拼: [ ${item.keys} ] 索引: ${indexDisplay}</div>`;
                 html += `<div class="error-record-info">错误次数: ${errors.length}</div>`;
                 html += '<div class="error-record-detail">';
                 errors.forEach((error, idx) => {
                     const time = new Date(error.time).toLocaleTimeString();
-                    html += `<div class="error-record-detail-item">${idx + 1}. 输入: "${error.input}" (时间: ${time})</div>`;
+                    // 将输入按键中的字母数字用等宽字体包裹
+                    const inputDisplay = error.input.replace(/([a-zA-Z0-9]+)/g, '<span class="monospace">$1</span>');
+                    html += `<div class="error-record-detail-item">${idx + 1}. 输入按键: [${inputDisplay}] 时间: ${time}</div>`;
                 });
                 html += '</div>';
                 html += '</div>';
@@ -1625,7 +1960,55 @@ function decodeGBK(uint8Array) {
     }
 }
 
-// 显示文件名
+// 保存上传的文件信息到 localStorage
+function saveUploadedFile(fileName, sentences) {
+    try {
+        const fileData = {
+            fileName: fileName,
+            sentences: sentences,
+            timestamp: Date.now()
+        };
+        localStorage.setItem('uploadedFile', JSON.stringify(fileData));
+        // 保存素材来源选择
+        localStorage.setItem('sourceType', 'upload');
+    } catch (error) {
+        console.error('保存文件信息失败:', error);
+    }
+}
+
+// 加载保存的上传文件
+function loadUploadedFile() {
+    try {
+        const savedFileData = localStorage.getItem('uploadedFile');
+        const savedSourceType = localStorage.getItem('sourceType');
+        
+        if (savedFileData && savedSourceType === 'upload') {
+            const fileData = JSON.parse(savedFileData);
+            if (fileData.fileName && fileData.sentences && fileData.sentences.length > 0) {
+                customSentences = fileData.sentences;
+                // 恢复素材来源选择
+                if (sourceSelect && difficulty === 'sentence') {
+                    sourceSelect.value = 'upload';
+                    displayFileName(fileData.fileName);
+                }
+                return true;
+            }
+        }
+    } catch (error) {
+        console.error('加载文件信息失败:', error);
+        // 清除损坏的数据
+        localStorage.removeItem('uploadedFile');
+        localStorage.removeItem('sourceType');
+    }
+    return false;
+}
+
+// 清除保存的文件信息
+function clearUploadedFile() {
+    localStorage.removeItem('uploadedFile');
+    localStorage.removeItem('sourceType');
+}
+
 function displayFileName(fileName) {
     if (!fileNameDisplay) return;
     
@@ -1640,9 +2023,9 @@ function displayFileName(fileName) {
         displayName = nameWithoutExt.substring(0, maxNameLength) + '...' + ext;
     }
     
-    fileNameDisplay.textContent = `已加载: ${displayName}`;
+    fileNameDisplay.textContent = '';
     fileNameDisplay.style.display = 'inline-block';
-    fileNameDisplay.title = fileName; // 完整文件名作为提示
+    fileNameDisplay.title = `已加载: ${displayName}`; // 显示完整文件名作为提示
 }
 
 // 页面加载完成后初始化

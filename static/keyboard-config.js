@@ -20,7 +20,7 @@ const keyboardConfigs = [
             // 同一个按键对应多个韵母时，使用逗号拼接作为value
             finals: {
                 q: "iu", w: "ei", e: "e", r: "uan,üan", t: "ue,üe", y: "un,ün", u: "u", i: "i", o: "o,uo", p: "ie", 
-                a: "a", s: "iong,ong", d: "ai", f: "en", g: "eng", h: "ang", j: "an", k: "ing,uai", l: "iang,uang", 
+                a: "a", s: "ong,iong", d: "ai", f: "en", g: "eng", h: "ang", j: "an", k: "ing,uai", l: "iang,uang", 
                 z: "ou", x: "ia,ua", c: "ao", v: "ü,ui", b: "in", n: "iao", m: "ian"
             },
             // 零声母映射：拼音 -> 按键组合（两个字母）

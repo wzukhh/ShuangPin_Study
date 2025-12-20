@@ -11,47 +11,46 @@
         <!-- 顶部工具栏 -->
         <div class="toolbar">
             <div class="toolbar-left">
-                <button class="btn" id="startBtn">开始</button>
-                <button class="btn" id="pauseBtn" disabled>暂停</button>
-                <button class="btn" id="resetBtn">重置</button>
+                <!-- 核心控制按钮 -->
+                <div class="toolbar-group">
+                    <button class="btn btn-icon" id="startBtn" title="开始">▶️</button>
+                    <button class="btn btn-icon" id="pauseBtn" disabled title="暂停">⏸️</button>
+                    <button class="btn btn-icon" id="resetBtn" title="重置">🔄</button>
+                </div>
                 <div class="divider"></div>
+                <!-- 设置选项 -->
                 <label>
-                    <span class="label-text">练习类型</span>
-                    <select id="difficultySelect">
+                    <select id="difficultySelect" title="练习类型">
                         <option value="sentence" selected>句子</option>
                         <option value="word">单字</option>
                     </select>
                 </label>
-                <div class="divider"></div>
+                <div class="divider" id="sourceDivider" style="display: none;"></div>
                 <div id="sourceContainer" style="display: none;">
                     <label id="sourceLabel">
-                        <span class="label-text">素材来源</span>
-                        <select id="sourceSelect">
+                        <select id="sourceSelect" title="素材来源">
                             <option value="builtin" selected>内置素材</option>
                             <option value="upload">上传文件</option>
                         </select>
+                        <span id="fileNameDisplay" class="file-icon" style="display: none;" title=""></span>
                     </label>
-                    <span id="fileNameDisplay" class="file-name-display" style="display: none;"></span>
                 </div>
                 <input type="file" id="fileInput" accept=".txt" style="display: none;">
-                <div class="divider" id="sourceDivider" style="display: none;"></div>
+                <div class="divider"></div>
                 <label>
-                    <span class="label-text">双拼方案</span>
-                    <select id="configSelect">
+                    <select id="configSelect" title="双拼方案">
                         <!-- 配置选项会动态生成 -->
                     </select>
                 </label>
                 <div class="divider"></div>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="showKeyExtra" checked>
-                    <span>双拼码</span>
-                </label>
+                <button class="btn btn-toggle" id="showKeyExtraBtn" title="在虚拟键盘上显示双拼码">双拼码</button>
             </div>
             <div class="toolbar-right">
-                <button class="btn theme-toggle" id="themeToggle" title="切换主题">
+                <button class="btn btn-icon" id="settingsBtn" title="设置">⚙️</button>
+                <button class="btn btn-icon theme-toggle" id="themeToggle" title="切换主题">
                     <span id="themeIcon">🌙</span>
                 </button>
-                <button class="btn help-toggle" id="helpToggle" title="使用说明">ℹ️</button>
+                <button class="btn btn-icon help-toggle" id="helpToggle" title="使用说明">ℹ️</button>
             </div>
         </div>
 
@@ -144,6 +143,79 @@
             </div>
             <div class="error-modal-body" id="errorModalBody">
                 <!-- 错误记录内容会动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div class="settings-modal" id="settingsModal">
+        <div class="settings-modal-content">
+            <div class="settings-modal-body">
+                <!-- 通用设置区域 -->
+                <div class="settings-section-group">
+                    <h4 class="settings-section-title">通用设置</h4>
+                    <div class="settings-section-content" id="generalSettings">
+                        <!-- 跳过数字/字母设置 -->
+                        <div class="settings-item">
+                            <div class="settings-item-header">
+                                <label class="settings-item-label" for="skipNonChinese">
+                                    跳过数字/字母
+                                </label>
+                            </div>
+                            <div class="settings-item-description">
+                                练习时自动跳过数字和字母，只练习汉字
+                            </div>
+                            <div class="settings-item-control">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="skipNonChinese" checked>
+                                    <span>启用</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- 管理练习素材按钮 -->
+                        <div class="settings-item">
+                            <div class="settings-item-header">
+                                <span class="settings-item-label">管理练习素材</span>
+                            </div>
+                            <div class="settings-item-description">
+                                管理内置练习素材和自定义上传的素材
+                            </div>
+                            <div class="settings-item-control">
+                                <button class="btn" id="manageMaterialsBtn">管理素材</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 高级设置区域 -->
+                <div class="settings-section-group">
+                    <h4 class="settings-section-title">高级设置</h4>
+                    <div class="settings-section-content" id="advancedSettings">
+                        <!-- 高级设置项将在这里添加 -->
+                    </div>
+                </div>
+
+                <!-- AI设置区域 -->
+                <div class="settings-section-group">
+                    <h4 class="settings-section-title">AI设置</h4>
+                    <div class="settings-section-content" id="aiSettings">
+                        <!-- AI设置项将在这里添加 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理练习素材弹窗 -->
+    <div class="materials-modal" id="materialsModal">
+        <div class="materials-modal-content">
+            <div class="materials-modal-header">
+                <h3>管理练习素材</h3>
+                <button class="materials-modal-close" id="materialsModalCloseBtn">×</button>
+            </div>
+            <div class="materials-modal-body" id="materialsModalBody">
+                <!-- 素材管理内容将在这里添加 -->
             </div>
         </div>
     </div>
